@@ -29,9 +29,10 @@ offset = ARGV.shift.to_i
 filenames = `env GIT_DIR=#{GIT_WORK_TREE}/.git git ls-files`.lines(chomp: true)
 
 print "#{filenames.size} files to run blame for, limit #{limit}, offset #{offset}\n"
+print "comparing blames\n"
 
 filenames.each_with_index.drop(offset).take(limit).each do |filename, file_number|
-  print "#{file_number} comparing blames for #{filename}\n"
+  print "#{file_number} #{filename}\n"
 
   absolute_filename = "#{GIT_WORK_TREE}/#{filename}"
 
