@@ -49,6 +49,18 @@ filenames.each_with_index.drop(offset).take(limit).each do |filename, file_numbe
   baseline_blamed_lines = `env GIT_DIR=#{GIT_DIR} #{baseline_executable} blame "#{absolute_filename}"`.lines(chomp: true)
   comparison_blamed_lines = `env GIT_DIR=#{GIT_DIR} #{comparison_executable} blame "#{absolute_filename}"`.lines(chomp: true)
 
+  if baseline_blamed_lines.size == 0
+    print "baseline blame had no content\n"
+
+    next
+  end
+
+  if comparison_blamed_lines.size == 0
+    print "comparison blame had no content\n"
+
+    next
+  end
+
   if baseline_blamed_lines.size != comparison_blamed_lines.size
     print "blames have different number of lines\n"
 
