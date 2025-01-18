@@ -26,7 +26,17 @@ comparison_executable = ARGV.shift
 limit = ARGV.shift.to_i
 offset = ARGV.shift.to_i
 
-filenames = `env GIT_DIR=#{GIT_WORK_TREE}/.git git ls-files`.lines(chomp: true)
+files = `env GIT_DIR=#{GIT_WORK_TREE}/.git git ls-files --format="%(path) %(eolinfo:index)"`.lines(chomp: true)
+
+print "#{files.size} files to run blame for, filtering out non-text files\n"
+
+filenames = files.filter_map do |file|
+  filename, attr = file.split(/\s+/)
+
+  if attr.nil? or not attr.include?("-text")
+    filename
+  end
+end
 
 print "#{filenames.size} files to run blame for, limit #{limit}, offset #{offset}\n"
 print "comparing blames\n"
