@@ -77,7 +77,7 @@ filenames.each_with_index.drop(offset).take(limit).each do |filename, file_numbe
     comparison_hash = match[1]
 
     if baseline_hash != comparison_hash
-      line = match[3]
+      line = match[4]
 
       print "hashes don't match for line #{line_number}: #{line}\n"
       print "baseline blamed #{baseline_hash} while comparison blamed #{comparison_hash}\n\n"
