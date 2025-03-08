@@ -137,6 +137,7 @@ enum Outcome {
     BlamesMatch,
     LineDidNotMatchPattern,
     HashesDidNotMatch,
+    FailedToRunExecutable,
 }
 
 fn compare_two_blames<T: AsRef<str>>(
@@ -145,26 +146,45 @@ fn compare_two_blames<T: AsRef<str>>(
     comparison_regex: &LazyLock<Regex>,
     filename: T,
 ) -> Outcome {
-    let unsplit_args = args.args.clone().unwrap_or("".to_string());
-    let split_args = unsplit_args.split_whitespace().collect::<Vec<_>>();
+    let extra_args = args.args.clone().unwrap_or("".to_string());
 
-    let baseline_output = Command::new(&args.baseline_executable)
+    let baseline_output = Command::new("bash")
         .env("GIT_DIR", args.git_dir())
         .env("GIT_WORK_TREE", args.git_work_tree.clone())
-        .arg("blame")
-        .args(&split_args)
-        .arg(filename.as_ref())
+        .arg("-c")
+        .arg(format!(
+            "{} blame {} {}",
+            args.baseline_executable.to_string_lossy(),
+            extra_args,
+            filename.as_ref()
+        ))
         .output()
         .expect("failed to run baseline executable");
 
-    let comparison_output = Command::new(&args.comparison_executable)
+    if !baseline_output.status.success() {
+        println!("{baseline_output:?}");
+
+        return Outcome::FailedToRunExecutable;
+    }
+
+    let comparison_output = Command::new("bash")
         .env("GIT_DIR", args.git_dir())
         .env("GIT_WORK_TREE", args.git_work_tree.clone())
-        .arg("blame")
-        .args(&split_args)
-        .arg(filename.as_ref())
+        .arg("-c")
+        .arg(format!(
+            "{} blame {} {}",
+            args.comparison_executable.to_string_lossy(),
+            extra_args,
+            filename.as_ref()
+        ))
         .output()
         .expect("failed to run comparison executable");
+
+    if !comparison_output.status.success() {
+        println!("{comparison_output:?}");
+
+        return Outcome::FailedToRunExecutable;
+    }
 
     let baseline_lines: Vec<_> = baseline_output
         .stdout
