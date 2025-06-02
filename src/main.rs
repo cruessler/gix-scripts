@@ -33,7 +33,7 @@ static GIT_BLAME_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| Regex::new(r"\^?([0-9a-f]+) (?:([^(^)]+)\s+)?(\(.* \d+\)) (.*)").unwrap());
 
 static GIX_BLAME_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| Regex::new(r"([0-9a-f]+) (\d+) (\d+) (.*)").unwrap());
+    LazyLock::new(|| Regex::new(r"([0-9a-f]+) (\d+) (?:\S+ )?(\d+) (.*)").unwrap());
 
 fn regex_for_executable(executable: &Path) -> Result<&'static LazyLock<Regex>, ()> {
     if executable.ends_with("git") {
