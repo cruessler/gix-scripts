@@ -6,6 +6,7 @@ use std::{
     process::Command,
     sync::LazyLock,
 };
+use tabwriter::TabWriter;
 
 #[derive(Debug, clap::Parser)]
 #[clap(name = "gix-scripts")]
@@ -102,14 +103,14 @@ fn main() {
             let result = compare_two_blames(&args, baseline_regex, comparison_regex, filename);
 
             let char = match result {
-                Outcome::BlamesMatch => '.',
+                Outcome::BlamesMatch { .. } => '.',
                 _ => 'x',
             };
 
             print!("{char}");
             let _ = stdout.flush();
 
-            result
+            (filename, result)
         })
         .collect();
 
@@ -117,27 +118,88 @@ fn main() {
 
     let number_of_matches = outcomes
         .iter()
-        .filter(|outcome| matches!(outcome, Outcome::BlamesMatch))
+        .filter(|(_, outcome)| matches!(outcome, Outcome::BlamesMatch { .. }))
         .count();
     let number_of_non_matches = outcomes.len() - number_of_matches;
 
     if number_of_non_matches == 0 {
-        println!("done, all blames matched");
+        println!("\ndone, all blames matched");
     } else {
         println!(
-            "done, number of matches: {}, number of non-matches: {}",
+            "\ndone, number of matches: {}, number of non-matches: {}",
             number_of_matches, number_of_non_matches
         );
+
+        println!("\nnon-matches:\n");
+
+        let mut tw = TabWriter::new(vec![]);
+
+        for (filename, outcome) in &outcomes {
+            if !matches!(outcome, Outcome::BlamesMatch { .. }) {
+                writeln!(&mut tw, "{filename}\t{outcome}").unwrap();
+            }
+        }
+
+        tw.flush().unwrap();
+
+        print!("{}", String::from_utf8(tw.into_inner().unwrap()).unwrap());
+
+        println!("\nsummary\n");
+
+        let (matching_lines, non_matching_lines) =
+            outcomes
+                .iter()
+                .fold((0, 0), |acc, (_, outcome)| match outcome {
+                    Outcome::BlamesMatch { matching_lines } => (acc.0 + matching_lines, acc.1),
+                    Outcome::LinesPartiallyMatched {
+                        matching_lines,
+                        non_matching_lines,
+                    } => (acc.0 + matching_lines, acc.1 + non_matching_lines),
+                    _ => acc,
+                });
+
+        let all_lines = matching_lines + non_matching_lines;
+        let percentage = (matching_lines as f32) / (all_lines as f32) * 100.0;
+
+        println!("{matching_lines}/{all_lines} {percentage:.2} %");
     }
 }
 
 #[derive(Debug)]
 enum Outcome {
     DifferingLineNumbers,
-    BlamesMatch,
+    BlamesMatch {
+        matching_lines: usize,
+    },
     LineDidNotMatchPattern,
-    HashesDidNotMatch,
+    LinesPartiallyMatched {
+        matching_lines: usize,
+        non_matching_lines: usize,
+    },
     FailedToRunExecutable,
+}
+
+impl std::fmt::Display for Outcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Outcome::DifferingLineNumbers => "differing line numbers".fmt(f),
+            Outcome::BlamesMatch { matching_lines } => {
+                format!("blames match\t#{matching_lines}").fmt(f)
+            }
+            Outcome::LineDidNotMatchPattern => "a line did not match the pattern".fmt(f),
+            Outcome::LinesPartiallyMatched {
+                matching_lines,
+                non_matching_lines,
+            } => {
+                let all_lines = matching_lines + non_matching_lines;
+                let percentage: f32 = (*matching_lines as f32) / (all_lines as f32) * 100.0;
+
+                format!("hashes partially matched\t{matching_lines}/{all_lines}\t{percentage:.2} %")
+                    .fmt(f)
+            }
+            Outcome::FailedToRunExecutable => "failed to run executable".fmt(f),
+        }
+    }
 }
 
 fn compare_two_blames<T: AsRef<str>>(
@@ -201,6 +263,9 @@ fn compare_two_blames<T: AsRef<str>>(
         return Outcome::DifferingLineNumbers;
     }
 
+    let mut matching_lines = 0;
+    let mut non_matching_lines = 0;
+
     for (baseline_line, comparison_line) in baseline_lines.into_iter().zip(comparison_lines) {
         let Some(baseline_captures) = baseline_regex.captures(&baseline_line) else {
             return Outcome::LineDidNotMatchPattern;
@@ -215,9 +280,18 @@ fn compare_two_blames<T: AsRef<str>>(
         if !baseline_hash.starts_with(comparison_hash)
             && !comparison_hash.starts_with(baseline_hash)
         {
-            return Outcome::HashesDidNotMatch;
+            non_matching_lines += 1;
+        } else {
+            matching_lines += 1;
         }
     }
 
-    Outcome::BlamesMatch
+    if non_matching_lines == 0 {
+        Outcome::BlamesMatch { matching_lines }
+    } else {
+        Outcome::LinesPartiallyMatched {
+            matching_lines,
+            non_matching_lines,
+        }
+    }
 }
