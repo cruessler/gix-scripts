@@ -1,0 +1,21 @@
+name: cron
+
+on:
+  schedule:
+    # This runs once a week, at 1 AM on Saturday. This is probably enough for
+    # the beginning.
+    - cron: "0 1 * * SAT"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Compare `git blame` and `gix blame` in the `gitoxide` repo
+        run: make compare
