@@ -20,8 +20,5 @@ release:
 prepare:
 	$(MAKE) -j2 $(gix) release
 
-# TODO
-# Once it is confirmed everything is working as intended, start increasing
-# `--take`, and eventually remove it.
 compare: prepare
 	./target/release/gix-scripts --git-work-tree="$(gitoxide_repo)" --baseline-executable="/usr/bin/git" --comparison-executable="$(gix)"
