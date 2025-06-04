@@ -9,7 +9,7 @@ $(gitoxide_repo):
 	cd $@ && git clone https://github.com/GitoxideLabs/gitoxide .
 
 gix := tests/fixtures/repos/gitoxide.git/target/release/gix
-$(gix): always
+$(gix): $(gitoxide_repo)
 	# Build `gix`.
 	cd $(gitoxide_repo) && cargo build --release --no-default-features --features small
 
