@@ -130,14 +130,20 @@ fn main() {
             number_of_matches, number_of_non_matches
         );
 
-        println!("\nnon-matches:\n");
+        let number_of_non_matches_to_show = number_of_non_matches.clamp(0, 256);
+
+        println!(
+            "\nnon-matches (showing {number_of_non_matches_to_show} of {number_of_non_matches}):\n"
+        );
 
         let mut tw = TabWriter::new(vec![]);
 
-        for (filename, outcome) in &outcomes {
-            if !matches!(outcome, Outcome::BlamesMatch { .. }) {
-                writeln!(&mut tw, "{filename}\t{outcome}").unwrap();
-            }
+        for (filename, outcome) in outcomes
+            .iter()
+            .filter(|(_, outcome)| !matches!(outcome, Outcome::BlamesMatch { .. }))
+            .take(number_of_non_matches_to_show)
+        {
+            writeln!(&mut tw, "{filename}\t{outcome}").unwrap();
         }
 
         tw.flush().unwrap();
