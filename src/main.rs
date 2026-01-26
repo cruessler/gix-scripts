@@ -152,22 +152,27 @@ fn main() {
 
         println!("\nsummary\n");
 
-        let (matching_lines, non_matching_lines) =
+        let (number_of_matching_lines, number_of_non_matching_lines) =
             outcomes
                 .iter()
                 .fold((0, 0), |acc, (_, outcome)| match outcome {
-                    Outcome::BlamesMatch { matching_lines } => (acc.0 + matching_lines, acc.1),
+                    Outcome::BlamesMatch {
+                        number_of_matching_lines,
+                    } => (acc.0 + number_of_matching_lines, acc.1),
                     Outcome::LinesPartiallyMatched {
-                        matching_lines,
+                        number_of_matching_lines,
                         non_matching_lines,
-                    } => (acc.0 + matching_lines, acc.1 + non_matching_lines),
+                    } => (
+                        acc.0 + number_of_matching_lines,
+                        acc.1 + non_matching_lines.len(),
+                    ),
                     _ => acc,
                 });
 
-        let all_lines = matching_lines + non_matching_lines;
-        let percentage = (matching_lines as f32) / (all_lines as f32) * 100.0;
+        let all_lines = number_of_matching_lines + number_of_non_matching_lines;
+        let percentage = (number_of_matching_lines as f32) / (all_lines as f32) * 100.0;
 
-        println!("{matching_lines}/{all_lines} {percentage:.2} %");
+        println!("{number_of_matching_lines}/{all_lines} {percentage:.2} %");
     }
 }
 
@@ -175,12 +180,12 @@ fn main() {
 enum Outcome {
     DifferingLineNumbers,
     BlamesMatch {
-        matching_lines: usize,
+        number_of_matching_lines: usize,
     },
     LineDidNotMatchPattern,
     LinesPartiallyMatched {
-        matching_lines: usize,
-        non_matching_lines: usize,
+        number_of_matching_lines: usize,
+        non_matching_lines: Vec<usize>,
     },
     FailedToRunExecutable,
 }
@@ -189,19 +194,29 @@ impl std::fmt::Display for Outcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Outcome::DifferingLineNumbers => "differing line numbers".fmt(f),
-            Outcome::BlamesMatch { matching_lines } => {
-                format!("blames match\t#{matching_lines}").fmt(f)
-            }
+            Outcome::BlamesMatch {
+                number_of_matching_lines: matching_lines,
+            } => format!("blames match\t#{matching_lines}").fmt(f),
             Outcome::LineDidNotMatchPattern => "a line did not match the pattern".fmt(f),
             Outcome::LinesPartiallyMatched {
-                matching_lines,
+                number_of_matching_lines,
                 non_matching_lines,
             } => {
-                let all_lines = matching_lines + non_matching_lines;
-                let percentage: f32 = (*matching_lines as f32) / (all_lines as f32) * 100.0;
+                let all_lines = number_of_matching_lines + non_matching_lines.len();
+                let percentage: f32 =
+                    (*number_of_matching_lines as f32) / (all_lines as f32) * 100.0;
 
-                format!("hashes partially matched\t{matching_lines}/{all_lines}\t{percentage:.2} %")
-                    .fmt(f)
+                let non_matching_lines = non_matching_lines
+                    .iter()
+                    .take(10)
+                    .map(|line_number| line_number.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                format!(
+                    "hashes partially matched\t{number_of_matching_lines}/{all_lines}\t{percentage:.2} %\t{non_matching_lines}",
+                )
+                .fmt(f)
             }
             Outcome::FailedToRunExecutable => "failed to run executable".fmt(f),
         }
@@ -269,10 +284,12 @@ fn compare_two_blames<T: AsRef<str>>(
         return Outcome::DifferingLineNumbers;
     }
 
-    let mut matching_lines = 0;
-    let mut non_matching_lines = 0;
+    let mut number_of_matching_lines = 0;
+    let mut non_matching_lines: Vec<usize> = Vec::new();
 
-    for (baseline_line, comparison_line) in baseline_lines.into_iter().zip(comparison_lines) {
+    for (line_number, (baseline_line, comparison_line)) in
+        baseline_lines.into_iter().zip(comparison_lines).enumerate()
+    {
         let Some(baseline_captures) = baseline_regex.captures(&baseline_line) else {
             return Outcome::LineDidNotMatchPattern;
         };
@@ -286,17 +303,19 @@ fn compare_two_blames<T: AsRef<str>>(
         if !baseline_hash.starts_with(comparison_hash)
             && !comparison_hash.starts_with(baseline_hash)
         {
-            non_matching_lines += 1;
+            non_matching_lines.push(line_number);
         } else {
-            matching_lines += 1;
+            number_of_matching_lines += 1;
         }
     }
 
-    if non_matching_lines == 0 {
-        Outcome::BlamesMatch { matching_lines }
+    if non_matching_lines.is_empty() {
+        Outcome::BlamesMatch {
+            number_of_matching_lines,
+        }
     } else {
         Outcome::LinesPartiallyMatched {
-            matching_lines,
+            number_of_matching_lines,
             non_matching_lines,
         }
     }
