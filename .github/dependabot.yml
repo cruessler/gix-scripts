@@ -2,9 +2,14 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directory: "/"
+
     schedule:
       interval: weekly
       day: thursday
+
+    assignees:
+      - "cruessler"
+
     ignore:
       # `dependency-name` is required.
       - dependency-name: "*"
@@ -12,6 +17,10 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
+
     schedule:
       interval: weekly
       day: thursday
+
+    assignees:
+      - "cruessler"
